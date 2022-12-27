@@ -34,16 +34,16 @@ void setup() {
 
 void loop() {
 
-  // Move DC motor forward with increasing speed
-  Serial.write("Running");
+  ledcWrite(pwmChannel, dutyCycle); 
+
+  Serial.write("Running CL");
   digitalWrite(motor1Pin1, HIGH);
   digitalWrite(motor1Pin2, LOW);
-  ledcWrite(pwmChannel, dutyCycle); 
-  delay(20000);  
+  delay(50000);  
 
-  Serial.write("Stopped");
-  digitalWrite(motor1Pin1, HIGH);
+  Serial.write("Running ACL");
+  digitalWrite(motor1Pin1, LOW);
   digitalWrite(motor1Pin2, HIGH);
-  delay(10000);
+  delay(50000);
 
 }
