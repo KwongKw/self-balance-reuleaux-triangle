@@ -40,7 +40,7 @@ void setup() {
 
   // driver config
   // power supply voltage [V]
-  driver.voltage_power_supply = 12;
+  driver.voltage_power_supply = 9;
   driver.init();
   // link the motor and the driver
   motor.linkDriver(&driver);
@@ -55,19 +55,19 @@ void setup() {
   // default parameters in defaults.h
 
   // velocity PI controller parameters
-  motor.PID_velocity.P = 0.2f;
-  motor.PID_velocity.I = 20;
+  motor.PID_velocity.P = 0.2;
+  motor.PID_velocity.I = 2;
   // maximal voltage to be set to the motor
   motor.voltage_limit = 6;
 
   // velocity low pass filtering time constant
   // the lower the less filtered
-  motor.LPF_velocity.Tf = 0.01f;
+  motor.LPF_velocity.Tf = 0.05;
 
   // angle P controller
   motor.P_angle.P = 20;
   // maximal velocity of the position control
-  motor.velocity_limit = 40;
+  motor.velocity_limit = 12;
 
   // use monitoring with serial
   Serial.begin(115200);
