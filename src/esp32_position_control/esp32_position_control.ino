@@ -49,7 +49,7 @@ void setup() {
   motor.foc_modulation = FOCModulationType::SpaceVectorPWM;
 
   // set motion control loop to be used
-  motor.controller = MotionControlType::angle;
+  motor.controller = MotionControlType::velocity;
 
   // contoller configuration
   // default parameters in defaults.h
@@ -59,6 +59,7 @@ void setup() {
   motor.PID_velocity.I = 2;
   // maximal voltage to be set to the motor
   motor.voltage_limit = 6;
+  motor.voltage_sensor_align = 1;
 
   // velocity low pass filtering time constant
   // the lower the less filtered
