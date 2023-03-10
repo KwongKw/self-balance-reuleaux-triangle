@@ -85,9 +85,9 @@ float v_p_2 = 0.2;
 float target_velocity = 0;     //目标速度
 float target_angle = 90;       //平衡角度 例如TA89.3 设置平衡角度89.3
 float target_voltage = 0;      //目标电压
-float swing_up_voltage = 1.4;  //摇摆电压 左右摇摆的电压，越大越快到平衡态，但是过大会翻过头
-float swing_up_angle = 12;     //摇摆角度 离平衡角度还有几度时候，切换到自平衡控制
-float v_i_1 = 25;              //非稳态速度环I
+float swing_up_voltage = 0.8;  //摇摆电压 左右摇摆的电压，越大越快到平衡态，但是过大会翻过头
+float swing_up_angle = 20;     //摇摆角度 离平衡角度还有几度时候，切换到自平衡控制
+float v_i_1 = 15;              //非稳态速度环I
 float v_p_1 = 1.8;             //非稳态速度环P
 float v_i_2 = 10;              //稳态速度环I
 float v_p_2 = 0.3;             //稳态速度环P
@@ -318,13 +318,14 @@ void setup() {
   motor.PID_velocity.I = v_i_1;
 
   //最大电机限制电机
-  motor.voltage_limit = 12;
+  motor.voltage_limit = 11.7;
+  motor.current_limit = 1.35;
 
   //速度低通滤波时间常数
-  motor.LPF_velocity.Tf = 0.02;
+  motor.LPF_velocity.Tf = 0.01;
 
   //设置最大速度限制
-  motor.velocity_limit = 30;
+  motor.velocity_limit = 40;
 
   motor.useMonitoring(Serial);
 
@@ -375,7 +376,7 @@ void loop() {
     float pendulum_angle = constrainAngle(fmod(kalAngleZ, 120) - target_angle);
 
     //   pendulum_angle当前角度与期望角度差值，在差值大的时候进行摇摆，差值小的时候LQR控制电机保持平衡
-    if (abs(pendulum_angle) < swing_up_angle)  // if angle small enough stabilize 0.5~20°,1.5~90°
+    if (abs(pendulum_angle) > swing_up_angle)  // if angle small enough stabilize 0.5~20°,1.5~90°
     {
       target_velocity = controllerLQR(pendulum_angle, gyroZrate, motor.shaft_velocity);
       if (abs(target_velocity) > 120)
