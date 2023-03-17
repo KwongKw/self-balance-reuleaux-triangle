@@ -21,7 +21,7 @@ MagneticSensorI2C sensor = MagneticSensorI2C(AS5600_I2C);
 // MagneticSensorAnalog sensor = MagneticSensorAnalog(A1, 14, 1020);
 
 // Motor instance
-BLDCMotor motor = BLDCMotor(7);
+BLDCMotor motor = BLDCMotor(6);
 BLDCDriver3PWM driver = BLDCDriver3PWM(25, 26, 27, 33);
 
 
