@@ -49,7 +49,7 @@ TwoWire I2Ctwo = TwoWire(1);
 LowPassFilter lpf_throttle{ 0.00 };
 
 //倒立摆参数
-float LQR_K3_1 = 3;    //摇摆到平衡
+float LQR_K3_1 = 8.4;    //摇摆到平衡
 float LQR_K3_2 = 1.7;   //
 float LQR_K3_3 = 1.75;  //
 
@@ -59,13 +59,13 @@ float LQR_K4_3 = 1.42;  //
 
 //电机参数
 BLDCMotor motor = BLDCMotor(7);
-BLDCDriver3PWM driver = BLDCDriver3PWM(25, 26, 27, 33);
+BLDCDriver3PWM driver = BLDCDriver3PWM(14, 12, 13, 27);
 
 float target_velocity = 0;     //目标速度
 float target_angle = 89.3;       //平衡角度 例如TA89.3 设置平衡角度89.3
 float target_voltage = 0;      //目标电压
 float swing_up_voltage = 1;  //摇摆电压 左右摇摆的电压，越大越快到平衡态，但是过大会翻过头
-float swing_up_angle = 12;     //摇摆角度 离平衡角度还有几度时候，切换到自平衡控制
+float swing_up_angle = 10;     //摇摆角度 离平衡角度还有几度时候，切换到自平衡控制
 float v_i_1 = 0.5;               //1      //非稳态速度环I
 float v_p_1 = 0.05;             //0.1      //非稳态速度环P
 float v_i_2 = 0.5;               //1      //稳态速度环I
@@ -274,7 +274,7 @@ void setup() {
   }
   udp.onPacket(onPacketCallBack);  //注册收到数据包事件
 
-  I2Ctwo.begin(23, 5, 400000);  //SDA,SCL
+  I2Ctwo.begin(17, 16, 400000);  //SDA,SCL
   sensor.init(&I2Ctwo);
 
   //连接motor对象与传感器对象
@@ -298,11 +298,11 @@ void setup() {
 
   //最大电机限制电机
   motor.voltage_limit = 12;
-  motor.voltage_sensor_align = 0.2;
-  //motor.current_limit = 1.5;
+  motor.voltage_sensor_align = 2;
+  motor.current_limit = 1.5;
 
   //速度低通滤波时间常数
-  motor.LPF_velocity.Tf = 0.005;
+  motor.LPF_velocity.Tf = 0.01;
 
   //设置最大速度限制
   motor.velocity_limit = 40;
