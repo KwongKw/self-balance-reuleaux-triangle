@@ -1,49 +1,37 @@
-/*********
-  Rui Santos
-  Complete project details at https://randomnerdtutorials.com  
-*********/
+#include <SimpleFOC.h>
 
-// Motor A
-int motor1Pin1 = 27; 
-int motor1Pin2 = 26; 
-int enable1Pin = 14; 
+MagneticSensorI2C sensor = MagneticSensorI2C(AS5600_I2C);
+TwoWire I2Ctwo = TwoWire(1);
 
-// Setting PWM properties
-const int freq = 30000;
-const int pwmChannel = 0;
-const int resolution = 8;
-int dutyCycle = 255;
+BLDCMotor motor = BLDCMotor(7);
+BLDCDriver3PWM driver = BLDCDriver3PWM(14, 12, 13, 27);
 
-void setup() {
-  // sets the pins as outputs:
-  pinMode(motor1Pin1, OUTPUT);
-  pinMode(motor1Pin2, OUTPUT);
-  pinMode(enable1Pin, OUTPUT);
+// include commander interface
+Commander command = Commander(Serial);
+void doMotor(char* cmd) { command.motor(&motor, cmd); }
+
+void setup(){
+  I2Ctwo.begin(17, 16, 400000);  //SDA,SCL
+  sensor.init(&I2Ctwo);
+
+  //连接motor对象与传感器对象
+  motor.linkSensor(&sensor);
   
-  // configure LED PWM functionalitites
-  ledcSetup(pwmChannel, freq, resolution);
-  
-  // attach the channel to the GPIO to be controlled
-  ledcAttachPin(enable1Pin, pwmChannel);
+  // add the motor to the commander interface
+  // The letter (here 'M') you will provide to the SimpleFOCStudio
+  command.add('M',doMotor,'motor');
+  // tell the motor to use the monitoring
+  motor.useMonitoring(Serial);
+  motor.monitor_downsample = 0; // disable monitor at first - optional
+  ...
 
-  Serial.begin(115200);
-
-  // testing
-  Serial.print("Testing DC Motor...");
 }
+void loop(){
+  ....
 
-void loop() {
-
-  ledcWrite(pwmChannel, dutyCycle); 
-
-  Serial.write("Running CL");
-  digitalWrite(motor1Pin1, HIGH);
-  digitalWrite(motor1Pin2, LOW);
-  delay(50000);  
-
-  Serial.write("Running ACL");
-  digitalWrite(motor1Pin1, LOW);
-  digitalWrite(motor1Pin2, HIGH);
-  delay(50000);
-
+  ....
+  // real-time monitoring calls
+  motor.monitor();
+  // real-time commander calls
+  command.run();
 }
