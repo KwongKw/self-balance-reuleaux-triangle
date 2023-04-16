@@ -30,8 +30,12 @@ BLDCDriver3PWM driver = BLDCDriver3PWM(14, 12, 13, 27);
 float target_velocity = 0;
 // instantiate the commander
 Commander command = Commander(Serial);
-void doTarget(char* cmd) { command.scalar(&target_velocity, cmd); }
-void doMotor(char* cmd) { command.motor(&motor, cmd); }
+void doTarget(char* cmd) {
+  command.scalar(&target_velocity, cmd);
+}
+void doMotor(char* cmd) {
+  command.motor(&motor, cmd);
+}
 
 void setup() {
 
@@ -40,8 +44,59 @@ void setup() {
   I2Ctwo.begin(17, 16, 400000);  //SDA,SCL
   sensor.init(&I2Ctwo);
   motor.linkSensor(&sensor);
+  
+  // control loop type and torque mode
+  motor.torque_controller = TorqueControlType::voltage;
+  motor.controller = MotionControlType::angle;
+  motor.motion_downsample = 0;
+
+  // velocity loop PID
+  motor.PID_velocity.P = 0;
+  motor.PID_velocity.I = 0;
+  motor.PID_velocity.D = 0;
+  motor.PID_velocity.output_ramp = 0;
+  motor.PID_velocity.limit = 0;
+  // Low pass filtering time constant
+  motor.LPF_velocity.Tf = 0;
+  // angle loop PID
+  motor.P_angle.P = 0;
+  motor.P_angle.I = 0;
+  motor.P_angle.D = 0;
+  motor.P_angle.output_ramp = 0;
+  motor.P_angle.limit = 0;
+  // Low pass filtering time constant
+  motor.LPF_angle.Tf = 0;
+  // current q loop PID
+  motor.PID_current_q.P = 0;
+  motor.PID_current_q.I = 0;
+  motor.PID_current_q.D = 0;
+  motor.PID_current_q.output_ramp = 0;
+  motor.PID_current_q.limit = 0;
+  // Low pass filtering time constant
+  motor.LPF_current_q.Tf = 0;
+  // current d loop PID
+  motor.PID_current_d.P = 0;
+  motor.PID_current_d.I = 0;
+  motor.PID_current_d.D = 0;
+  motor.PID_current_d.output_ramp = 0;
+  motor.PID_current_d.limit = 0;
+  // Low pass filtering time constant
+  motor.LPF_current_d.Tf = 0;
+  // Limits
+  motor.velocity_limit = 0;
+  motor.voltage_limit = 0;
+  motor.current_limit = 0;
+  // sensor zero offset - home position
+  motor.sensor_offset = 0;
+  // general settings
+  // motor phase resistance
+  motor.phase_resistance = 0;
+  // pwm modulation settings
+  motor.foc_modulation = FOCModulationType::SinePWM;
+  motor.modulation_centered = 1;
 
   // driver config
+  /**
   // power supply voltage [V]
   driver.voltage_power_supply = 12;
   driver.init();
@@ -71,7 +126,7 @@ void setup() {
 
   //设置最大速度限制
   motor.velocity_limit = 40;
-
+  **/
   // use monitoring with serial
   Serial.begin(115200);
   // comment out if not needed
@@ -85,7 +140,7 @@ void setup() {
 
   // add target command T
   command.add('T', doTarget, "target velocity");
-  command.add('M',doMotor,"motor");
+  command.add('M', doMotor, "motor");
 
   Serial.println(F("Motor ready."));
   Serial.println(F("Set the target velocity using serial terminal:"));

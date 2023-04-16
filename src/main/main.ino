@@ -3,6 +3,7 @@ MotorDriver 14, 12, 13, 27 (M1, M2, M3, EN)
 AS5600      17, 16 (SDA, SCL)
 MPU6050     19, 18 (SDA, SCL)
 **/
+
 #include <SimpleFOC.h>
 #include "Kalman.h"  // Source: https://github.com/TKJElectronics/KalmanFilter
 Kalman kalmanZ;
@@ -31,29 +32,24 @@ MagneticSensorI2C sensor = MagneticSensorI2C(AS5600_I2C);
 TwoWire I2Ctwo = TwoWire(1);
 LowPassFilter lpf_throttle{ 0.00 };
 
-//倒立摆参数
-float LQR_K3_1 = 8.4;   //摇摆到平衡
-float LQR_K3_2 = 1.7;   //
-float LQR_K3_3 = 1.75;  //
-
-float LQR_K4_1 = 2.4;   //平衡到稳定
-float LQR_K4_2 = 1.5;   //
-float LQR_K4_3 = 1.42;  //
+float LQR_K_1 = 7.1;   //70.8037
+float LQR_K_2 = 1.7;   //17.1489
+float LQR_K_3 = 1.75;     //1 ?
 
 //电机参数
 BLDCMotor motor = BLDCMotor(7);
 BLDCDriver3PWM driver = BLDCDriver3PWM(14, 12, 13, 27);
 
-float target_velocity = 0;   //目标速度
-float target_angle = 89.3;   //平衡角度 例如TA89.3 设置平衡角度89.3
-float target_voltage = 0;    //目标电压
-float swing_up_voltage = 1;  //摇摆电压 左右摇摆的电压，越大越快到平衡态，但是过大会翻过头
-float swing_up_angle = 10;   //摇摆角度 离平衡角度还有几度时候，切换到自平衡控制
-float v_i_1 = 0.5;           //1      //非稳态速度环I
-float v_p_1 = 0.05;          //0.1      //非稳态速度环P
-float v_i_2 = 0.5;           //1      //稳态速度环I
-float v_p_2 = 0.05;          //0.1      //稳态速度环P
+float target_velocity = 0;
+float target_angle = 89.3;
+float target_voltage = 0;
+float swing_up_voltage = 1;
+float swing_up_angle = 15;
 
+float v_p = 0.2;   //0.05      //P
+float v_i = 0.4;   //0.5      //I
+float v_d = 0.0;  //0.01     //D
+//---------------------------------------------------------------------------------------------------------------------//
 void setup() {
   Serial.begin(115200);
 
@@ -63,16 +59,12 @@ void setup() {
   i2cData[1] = 0x00;           // Disable FSYNC and set 260 Hz Acc filtering, 256 Hz Gyro filtering, 8 KHz sampling
   i2cData[2] = 0x00;           // Set Gyro Full Scale Range to ±250deg/s
   i2cData[3] = 0x00;           // Set Accelerometer Full Scale Range to ±2g
-  while (i2cWrite(0x19, i2cData, 4, false))
-    ;  // Write to all four registers at once
-  while (i2cWrite(0x6B, 0x01, true))
-    ;  // PLL with X axis gyroscope reference and disable sleep mode
-  while (i2cRead(0x75, i2cData, 1))
-    ;
+  while (i2cWrite(0x19, i2cData, 4, false));  // Write to all four registers at once
+  while (i2cWrite(0x6B, 0x01, true));  // PLL with X axis gyroscope reference and disable sleep mode
+  while (i2cRead(0x75, i2cData, 1));
   if (i2cData[0] != 0x68) {  // Read "WHO_AM_I" register
     Serial.print(F("Error reading sensor"));
-    while (1)
-      ;
+    while (1);
   }
   delay(100);  // Wait for sensor to stabilize
 
@@ -88,55 +80,48 @@ void setup() {
   timer = micros();
   Serial.println("kalman mpu6050 init");
 
+  // AS5600 init
   I2Ctwo.begin(17, 16, 400000);  //SDA,SCL
   sensor.init(&I2Ctwo);
-
-  //连接motor对象与传感器对象
   motor.linkSensor(&sensor);
 
-  //供电电压设置 [V]
+  // FOCDriver init
   driver.voltage_power_supply = 12;
   driver.init();
-
-  //连接电机和driver对象
   motor.linkDriver(&driver);
 
-  //FOC模型选择
+  // pwm modulation settings
   motor.foc_modulation = FOCModulationType::SpaceVectorPWM;
 
-  //运动控制模式设置
+  // control loop type and torque mode
   motor.controller = MotionControlType::velocity;
-  //速度PI环设置
-  motor.PID_velocity.P = v_p_1;
-  motor.PID_velocity.I = v_i_1;
 
-  //最大电机限制电机
+  // velocity loop PID
+  motor.PID_velocity.P = v_p;
+  motor.PID_velocity.I = v_i;
+  motor.PID_velocity.D = v_d;
+  motor.PID_velocity.limit = 40;
+  // Low pass filtering time constant
+  motor.LPF_velocity.Tf = 0.01;
+
+  // Limits
   motor.voltage_limit = 12;
   motor.voltage_sensor_align = 2;
   motor.current_limit = 1.5;
 
-  //速度低通滤波时间常数
-  motor.LPF_velocity.Tf = 0.01;
+  //motor.useMonitoring(Serial);
 
-  //设置最大速度限制
-  motor.velocity_limit = 40;
-
-  motor.useMonitoring(Serial);
-
-  //初始化电机
+  // initialize motor
   motor.init();
-
-  //初始化 FOC
+  // align sensor and start FOC
   motor.initFOC();
 }
 
-char buf[255];
-long loop_count = 0;
 double last_pitch;
+//-----------------------------------------------------------------------------------------------------------------------------//
 void loop() {
   motor.loopFOC();
-  //    loop_count++ == 10
-  //    loop_count = 0;
+
   while (i2cRead(0x3B, i2cData, 14))
     ;
   accX = (int16_t)((i2cData[0] << 8) | i2cData[1]);
@@ -151,6 +136,7 @@ void loop() {
   timer = micros();
 
   double pitch = acc2rotation(accX, accY);
+
   double gyroZrate = gyroZ / 131.0;  // Convert to deg/s
   if (abs(pitch - last_pitch) > 100)
     kalmanZ.setAngle(pitch);
@@ -166,15 +152,14 @@ void loop() {
 
   float pendulum_angle = constrainAngle(fmod(kalAngleZ, 120) - target_angle);
 
-  //   pendulum_angle当前角度与期望角度差值，在差值大的时候进行摇摆，差值小的时候LQR控制电机保持平衡
-  if (abs(pendulum_angle) < swing_up_angle)  // if angle small enough stabilize 0.5~20°,1.5~90°
+  //   pendulum_angle = error
+  if (abs(pendulum_angle) < swing_up_angle)  // if angle small enough stabilize
   {
     target_velocity = controllerLQR(pendulum_angle, gyroZrate, motor.shaft_velocity);
-    if (abs(target_velocity) > 140)                    //120
-      target_velocity = _sign(target_velocity) * 140;  //120
+    if (abs(target_velocity) > 140)
+      target_velocity = _sign(target_velocity) * 140;
     motor.controller = MotionControlType::velocity;
     motor.move(target_velocity);
-    // Serial.print(target_velocity);
   } else  // else do swing-up
   {       // sets swing_up_voltage to the motor in order to swing up
     motor.controller = MotionControlType::torque;
@@ -182,52 +167,27 @@ void loop() {
     motor.move(target_voltage);
   }
 
-//Debug Console
+//Debug
 #if 0
-    Serial.print(target_velocity);
-    Serial.print("\t");
-    Serial.print(pitch);
-    Serial.print("\t");
-    Serial.print(kalAngleZ);
-    Serial.print("\t");
-    Serial.print(target_voltage);
-    Serial.print("\t");
-    Serial.print(motor.shaft_velocity);
-    Serial.print("\t");
-    Serial.print(motor.voltage.q);
-    Serial.print("\t");
-    Serial.print(target_angle);
-    Serial.print("\t");
-    Serial.print(pendulum_angle);
-    Serial.print("\t");
-    Serial.print(gyroZrate);
-    Serial.print("\t");
-    Serial.print("\r\n");
+    Serial.print(target_velocity);Serial.print("\t");
+    Serial.print(pitch);Serial.print("\t");
+    Serial.print(kalAngleZ);Serial.print("\t");
+    Serial.print(target_voltage);Serial.print("\t");
+    Serial.print(motor.shaft_velocity);Serial.print("\t");
+    Serial.print(motor.voltage.q);Serial.print("\t");
+    Serial.print(target_angle);Serial.print("\t");
+    Serial.print(pendulum_angle);Serial.print("\t");
+    Serial.print(gyroZrate);Serial.print("\r\n");
 #endif
 }
-/* mpu6050加速度转换为角度
-            acc2rotation(ax, ay)
-            acc2rotation(az, ay) */
+
 double acc2rotation(double x, double y) {
-  double tmp_kalAngleZ = (atan(x / y) / 1.570796 * 90);
+  double tmp_kalAngleZ = atan(x / y) * 180.0 / PI;
   if (y < 0) {
     return (tmp_kalAngleZ + 180);
   } else if (x < 0) {
-    //将当前值与前值比较，当前差值大于100则认为异常
-    if (!isnan(kalAngleZ) && (tmp_kalAngleZ + 360 - kalAngleZ) > 100) {
-      //Serial.print("X<0"); Serial.print("\t");
-      //Serial.print(tmp_kalAngleZ); Serial.print("\t");
-      //Serial.print(kalAngleZ); Serial.print("\t");
-      //Serial.print("\r\n");
-      if (tmp_kalAngleZ < 0 && kalAngleZ < 0)  //按键右边角
-        return tmp_kalAngleZ;
-      else  //按键边异常处理
-        return tmp_kalAngleZ;
-    } else
-      return (tmp_kalAngleZ + 360);
-  } else {
-    return tmp_kalAngleZ;
-  }
+    return (tmp_kalAngleZ + 360);
+  } else return tmp_kalAngleZ;
 }
 
 // function constraining the angle in between -60~60
@@ -241,48 +201,29 @@ float constrainAngle(float x) {
   return x;
 }
 
-// TODO PID stabilization controller functions
+// TODO
+// PID stabilization controller functions
 // calculating the voltage that needs to be set to the motor in order to stabilize the pendulum
-
+float controllerPID(float p_angle){}
 
 // LQR stabilization controller functions
 // calculating the voltage that needs to be set to the motor in order to stabilize the pendulum
 float controllerLQR(float p_angle, float p_vel, float m_vel) {
-  if (abs(p_angle) > 5)  //摆角大于5则进入非稳态，记录非稳态时间
-  {
+  if (abs(p_angle) > 5) {
     last_unstable_time = millis();
-    if (stable)  //如果是稳态进入非稳态则调整为目标角度
-    {
-      //target_angle = EEPROM.readFloat(0) - p_angle;
-      stable = 0;
-    }
+    stable = 0;
   }
-  if ((millis() - last_unstable_time) > 1000 && !stable)  //非稳态进入稳态超过500ms检测，更新目标角为目标角+摆角，假设进入稳态
-  {
-    //target_angle  -= _sign(target_velocity) * 0.4;
+  if ((millis() - last_unstable_time) > 1000 && !stable) {
     target_angle = target_angle + p_angle;
     stable = 1;
   }
-
-  if ((millis() - last_stable_time) > 2500 && stable) {  //稳态超过2000ms检测，更新目标角
-    if (abs(target_velocity) > 5) {                      //稳态速度偏大校正
+  if ((millis() - last_stable_time) > 2500 && stable) {
+    if (abs(target_velocity) > 5) {
       last_stable_time = millis();
       target_angle -= _sign(target_velocity) * 0.2;
     }
   }
 
-  float u;
-
-  if (!stable)  //非稳态计算
-  {
-    motor.PID_velocity.P = v_p_1;
-    motor.PID_velocity.I = v_i_1;
-    u = LQR_K3_1 * p_angle + LQR_K3_2 * p_vel + LQR_K3_3 * m_vel;
-  } else {
-    motor.PID_velocity.P = v_p_2;
-    motor.PID_velocity.I = v_i_2;
-    u = LQR_K4_1 * p_angle + LQR_K4_2 * p_vel + LQR_K4_3 * m_vel;
-  }
-
+  float u = LQR_K_1 * p_angle + LQR_K_2 * p_vel + LQR_K_3 * m_vel;
   return u;
 }
