@@ -115,6 +115,8 @@ void setup() {
   motor.init();
   // align sensor and start FOC
   motor.initFOC();
+
+  Serial.println("Success");
 }
 
 double last_pitch;
@@ -163,7 +165,8 @@ void loop() {
   } else  // else do swing-up
   {       // sets swing_up_voltage to the motor in order to swing up
     motor.controller = MotionControlType::torque;
-    target_voltage = -_sign(gyroZrate) * swing_up_voltage;
+    //target_voltage = -_sign(gyroZrate) * swing_up_voltage;
+    target_voltage = 0;
     motor.move(target_voltage);
   }
 
